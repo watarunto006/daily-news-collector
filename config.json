@@ -1,0 +1,75 @@
+{
+  "topics": {
+    "did-vc": {
+      "label": "DID/VC ニュースダイジェスト",
+      "keywords_en": [
+        "Decentralized Identifier",
+        "Verifiable Credentials",
+        "Self-Sovereign Identity",
+        "decentralized identity"
+      ],
+      "keywords_ja": [
+        "分散型ID DID",
+        "検証可能な資格情報",
+        "自己主権型アイデンティティ"
+      ],
+      "exclude_keywords": ["bitcoin price", "crypto trading", "ビットコイン 値動き"],
+      "apis": [
+        {
+          "type": "hackernews",
+          "queries": ["decentralized identity", "verifiable credentials", "DID method", "self-sovereign identity"]
+        }
+      ]
+    },
+    "ai-business": {
+      "label": "AI ビジネスニュースダイジェスト",
+      "keywords_en": [
+        "AI startup funding acquisition",
+        "artificial intelligence enterprise",
+        "AI regulation policy governance"
+      ],
+      "keywords_ja": [
+        "AI 資金調達 提携",
+        "生成AI 企業 導入",
+        "AI 規制 ガバナンス"
+      ],
+      "exclude_keywords": [],
+      "apis": []
+    },
+    "ai-dev": {
+      "label": "AI 開発・技術ニュースダイジェスト",
+      "keywords_en": [
+        "LLM new model release benchmark",
+        "AI framework SDK release",
+        "AI agent MCP tool use"
+      ],
+      "keywords_ja": [
+        "LLM 新モデル リリース",
+        "生成AI フレームワーク API",
+        "AIエージェント AI開発ツール"
+      ],
+      "exclude_keywords": [],
+      "apis": [
+        {
+          "type": "hackernews",
+          "queries": ["LLM", "AI agent", "language model", "MCP server", "function calling"]
+        }
+      ]
+    },
+    "ai-research": {
+      "label": "AI 研究論文ダイジェスト",
+      "keywords_en": [
+        "AI LLM language model arxiv",
+        "AI research breakthrough state-of-the-art",
+        "machine learning deep learning new method",
+        "AI safety alignment research"
+      ],
+      "keywords_ja": [
+        "AI 論文 注目",
+        "大規模言語モデル 研究 新手法"
+      ],
+      "exclude_keywords": [],
+      "apis": []
+    }
+  }
+}
