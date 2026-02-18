@@ -14,6 +14,53 @@
 
 URL・公開日・出力フォーマットはすべて Python が保証する。Claude は関連性の判定と要約のみを担当する。
 
+## セットアップ
+
+### Python のインストール
+
+**macOS** (Homebrew):
+
+```bash
+brew install python
+```
+
+**macOS** (公式インストーラ):
+
+https://www.python.org/downloads/ からダウンロードしてインストール。
+
+**Ubuntu / Debian**:
+
+```bash
+sudo apt update && sudo apt install python3
+```
+
+インストール確認:
+
+```bash
+python3 --version  # 3.11 以上
+```
+
+### Claude Code のインストール
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+初回起動時に認証を完了させる:
+
+```bash
+claude
+```
+
+詳細: https://docs.anthropic.com/en/docs/claude-code
+
+### このリポジトリのクローン
+
+```bash
+git clone https://github.com/watarunto006/daily-news-collector.git
+cd daily-news-collector
+```
+
 ## 前提条件
 
 - Python 3.11+
