@@ -403,13 +403,12 @@ def generate_report(
     if en_articles:
         for i, a in enumerate(en_articles, 1):
             importance = a.get("importance")
-            lines.append(f"### {i}. {a['title']}")
+            lines.append(f"### {i}. [{a['title']}]({a['url']})")
             if importance:
                 importance_badge = {"high": "🔴 HIGH", "medium": "🟡 MEDIUM", "low": "🔵 LOW"}.get(importance, importance)
                 lines.append(f"- **Importance**: {importance_badge}")
             lines.append(f"- **Published**: {a['published']}")
             lines.append(f"- **Source**: {a['source']}")
-            lines.append(f"- **URL**: {a['url']}")
             if a.get("hn_url"):
                 lines.append(f"- **HN**: {a['hn_url']}")
             if a.get("summary_ja"):
@@ -425,13 +424,12 @@ def generate_report(
     if ja_articles:
         for i, a in enumerate(ja_articles, 1):
             importance = a.get("importance")
-            lines.append(f"### {i}. {a['title']}")
+            lines.append(f"### {i}. [{a['title']}]({a['url']})")
             if importance:
                 importance_badge = {"high": "🔴 HIGH", "medium": "🟡 MEDIUM", "low": "🔵 LOW"}.get(importance, importance)
                 lines.append(f"- **重要度**: {importance_badge}")
             lines.append(f"- **公開日**: {a['published']}")
             lines.append(f"- **Source**: {a['source']}")
-            lines.append(f"- **URL**: {a['url']}")
             if a.get("summary_ja"):
                 lines.append(f"- **要約**: {a['summary_ja']}")
             lines.append("")
