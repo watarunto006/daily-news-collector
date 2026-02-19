@@ -269,11 +269,12 @@ def call_claude_api(articles: list[dict], topic_label: str, model: str) -> dict 
 
     try:
         client = Anthropic()
-        message = client.messages.create(
+        with client.messages.stream(
             model=model,
             max_tokens=32768,
             messages=[{"role": "user", "content": prompt}],
-        )
+        ) as stream:
+            message = stream.get_final_message()
         output = message.content[0].text.strip()
         if message.stop_reason == "max_tokens":
             print(f"  [WARN] API response truncated (max_tokens=32768, articles={len(articles)})", file=sys.stderr)
@@ -320,10 +321,10 @@ def merge_results(
         selected = articles
         for a in selected:
             a["summary_ja"] = ""
-            a["importance"] = "medium"
+            a["importance"] = None
 
     importance_order = {"high": 0, "medium": 1, "low": 2}
-    selected.sort(key=lambda a: importance_order.get(a.get("importance", "medium"), 1))
+    selected.sort(key=lambda a: importance_order.get(a.get("importance"), 3))
     return selected, excluded
 
 
@@ -346,7 +347,7 @@ def generate_report_json(
             "source": a.get("source", ""),
             "lang": a.get("lang", ""),
             "summary_ja": a.get("summary_ja", ""),
-            "importance": a.get("importance", "medium"),
+            "importance": a.get("importance"),
             "hn_url": a.get("hn_url"),
         }
 
@@ -401,10 +402,11 @@ def generate_report(
     lines.append("")
     if en_articles:
         for i, a in enumerate(en_articles, 1):
-            importance = a.get("importance", "medium")
-            importance_badge = {"high": "🔴 HIGH", "medium": "🟡 MEDIUM", "low": "🔵 LOW"}.get(importance, importance)
+            importance = a.get("importance")
             lines.append(f"### {i}. {a['title']}")
-            lines.append(f"- **Importance**: {importance_badge}")
+            if importance:
+                importance_badge = {"high": "🔴 HIGH", "medium": "🟡 MEDIUM", "low": "🔵 LOW"}.get(importance, importance)
+                lines.append(f"- **Importance**: {importance_badge}")
             lines.append(f"- **Published**: {a['published']}")
             lines.append(f"- **Source**: {a['source']}")
             lines.append(f"- **URL**: {a['url']}")
@@ -422,10 +424,11 @@ def generate_report(
     lines.append("")
     if ja_articles:
         for i, a in enumerate(ja_articles, 1):
-            importance = a.get("importance", "medium")
-            importance_badge = {"high": "🔴 HIGH", "medium": "🟡 MEDIUM", "low": "🔵 LOW"}.get(importance, importance)
+            importance = a.get("importance")
             lines.append(f"### {i}. {a['title']}")
-            lines.append(f"- **重要度**: {importance_badge}")
+            if importance:
+                importance_badge = {"high": "🔴 HIGH", "medium": "🟡 MEDIUM", "low": "🔵 LOW"}.get(importance, importance)
+                lines.append(f"- **重要度**: {importance_badge}")
             lines.append(f"- **公開日**: {a['published']}")
             lines.append(f"- **Source**: {a['source']}")
             lines.append(f"- **URL**: {a['url']}")
