@@ -30,9 +30,9 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE = os.path.join(SCRIPT_DIR, "config.json")
+CONFIG_FILE = os.environ.get("DAILY_NEWS_CONFIG") or os.path.join(SCRIPT_DIR, "config.json")
 PROMPT_TEMPLATE_FILE = os.path.join(SCRIPT_DIR, "prompt_template.md")
-REPORTS_DIR = os.path.join(SCRIPT_DIR, "reports")
+REPORTS_DIR = os.environ.get("DAILY_NEWS_REPORTS_DIR") or os.path.join(SCRIPT_DIR, "reports")
 
 JST = timezone(timedelta(hours=9))
 
@@ -245,6 +245,56 @@ def call_claude(articles: list[dict], topic_label: str) -> dict | None:
         return None
 
 
+def call_claude_api(articles: list[dict], topic_label: str, model: str) -> dict | None:
+    """Anthropic Messages API で記事の関連性判定と要約を行う。"""
+    from anthropic import Anthropic
+
+    with open(PROMPT_TEMPLATE_FILE) as f:
+        template = f.read()
+
+    for i, a in enumerate(articles):
+        a["id"] = str(i)
+
+    articles_json = json.dumps(articles, ensure_ascii=False, indent=2)
+    prompt = template.replace("{{TOPIC_LABEL}}", topic_label)
+    prompt = prompt.replace("{{ARTICLES_JSON}}", articles_json)
+
+    try:
+        client = Anthropic()
+        message = client.messages.create(
+            model=model,
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        output = message.content[0].text.strip()
+    except Exception as e:
+        print(f"  [ERROR] Anthropic API call failed: {e}", file=sys.stderr)
+        return None
+
+    json_match = re.search(r'\{[\s\S]*\}', output)
+    if json_match:
+        try:
+            return json.loads(json_match.group())
+        except json.JSONDecodeError:
+            print("  [WARN] Failed to parse API output as JSON", file=sys.stderr)
+            print(f"  Output: {output[:500]}", file=sys.stderr)
+            return None
+    else:
+        print("  [WARN] No JSON found in API output", file=sys.stderr)
+        print(f"  Output: {output[:500]}", file=sys.stderr)
+        return None
+
+
+def analyze_with_claude(articles: list[dict], topic_label: str) -> dict | None:
+    """ANTHROPIC_API_KEY の有無で API モードと CLI モードを切り替える。"""
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    model = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
+    if api_key:
+        return call_claude_api(articles, topic_label, model)
+    else:
+        return call_claude(articles, topic_label)
+
+
 # =============================================================================
 # レポート生成
 # =============================================================================
@@ -371,8 +421,8 @@ def generate_report(
 # メイン
 # =============================================================================
 
-def collect_topic(topic_id: str, topic_config: dict, date_str: str):
-    """1つのトピックについて収集・分析・レポート生成を行う。"""
+def collect_topic(topic_id: str, topic_config: dict, date_str: str) -> str:
+    """1つのトピックについて収集・分析・レポート生成を行う。出力ファイルパスを返す。"""
     label = topic_config["label"]
     print(f"--- {topic_id} 収集開始 ---", file=sys.stderr)
 
@@ -421,7 +471,7 @@ def collect_topic(topic_id: str, topic_config: dict, date_str: str):
     claude_result = None
     if all_articles:
         print("  Claude で分析中...", file=sys.stderr)
-        claude_result = call_claude(all_articles, label)
+        claude_result = analyze_with_claude(all_articles, label)
         if claude_result:
             print(f"  → {len(claude_result.get('articles', []))}件を採用", file=sys.stderr)
         else:
@@ -438,13 +488,14 @@ def collect_topic(topic_id: str, topic_config: dict, date_str: str):
         f.write(report)
 
     print(f"--- {topic_id} 収集完了: {output_file} ---", file=sys.stderr)
+    return output_file
 
 
 def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="ニュース日次収集")
-    parser.add_argument("topic", help="トピック名 or 'all'")
+    parser.add_argument("topic", help="トピック名 or 'all'（カンマ区切りで複数指定可）")
     parser.add_argument("--date", default=datetime.now(JST).strftime("%Y-%m-%d"), help="レポートの日付")
     args = parser.parse_args()
 
@@ -454,15 +505,35 @@ def main():
     topics = config["topics"]
     valid_topics = list(topics.keys())
 
+    # 実行するトピックを決定（カンマ区切り対応）
     if args.topic == "all":
-        for tid in valid_topics:
-            collect_topic(tid, topics[tid], args.date)
-    elif args.topic in topics:
-        collect_topic(args.topic, topics[args.topic], args.date)
+        target_topics = valid_topics
     else:
-        print(f"エラー: 不明なトピック '{args.topic}'", file=sys.stderr)
-        print(f"有効なトピック: {', '.join(valid_topics)}, all", file=sys.stderr)
-        sys.exit(1)
+        target_topics = [t.strip() for t in args.topic.split(",")]
+        for t in target_topics:
+            if t not in topics:
+                print(f"エラー: 不明なトピック '{t}'", file=sys.stderr)
+                print(f"有効なトピック: {', '.join(valid_topics)}, all", file=sys.stderr)
+                sys.exit(1)
+
+    report_paths = []
+    collected_topics = []
+    for tid in target_topics:
+        output_file = collect_topic(tid, topics[tid], args.date)
+        report_paths.append(output_file)
+        collected_topics.append(tid)
+
+    # GitHub Actions 用の出力
+    github_output = os.environ.get("GITHUB_OUTPUT")
+    if github_output:
+        with open(github_output, "a") as f:
+            f.write(f"report-dir={REPORTS_DIR}\n")
+            f.write(f"topics-collected={','.join(collected_topics)}\n")
+            # 複数行の値は delimiter 構文を使用
+            f.write("report-paths<<EOF\n")
+            for p in report_paths:
+                f.write(f"{p}\n")
+            f.write("EOF\n")
 
 
 if __name__ == "__main__":

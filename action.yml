@@ -1,0 +1,57 @@
+name: 'Daily News Collector'
+description: 'ニュース日次収集 - Google News RSS + Hacker News から記事を収集し、Claude で関連性判定・要約してレポート生成'
+
+inputs:
+  topics:
+    description: 'カンマ区切りのトピックID（例: ai-dev,did-vc）。all で全トピック'
+    required: false
+    default: 'all'
+  anthropic_api_key:
+    description: 'Anthropic API Key'
+    required: true
+  model:
+    description: 'Claude モデルID'
+    required: false
+    default: 'claude-sonnet-4-6'
+  config:
+    description: 'カスタム config.json のパス'
+    required: false
+  date:
+    description: 'レポート日付（YYYY-MM-DD）。省略時は当日（JST）'
+    required: false
+
+outputs:
+  report-paths:
+    description: '生成されたレポートファイルパス（改行区切り）'
+    value: ${{ steps.collect.outputs.report-paths }}
+  report-dir:
+    description: 'レポート出力ディレクトリ'
+    value: ${{ steps.collect.outputs.report-dir }}
+  topics-collected:
+    description: '収集したトピックID（カンマ区切り）'
+    value: ${{ steps.collect.outputs.topics-collected }}
+
+runs:
+  using: 'composite'
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      shell: bash
+      run: pip install -r ${{ github.action_path }}/requirements.txt
+
+    - name: Collect news
+      id: collect
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        CLAUDE_MODEL: ${{ inputs.model }}
+        DAILY_NEWS_CONFIG: ${{ inputs.config }}
+      run: |
+        ARGS="${{ inputs.topics }}"
+        if [ -n "${{ inputs.date }}" ]; then
+          ARGS="$ARGS --date ${{ inputs.date }}"
+        fi
+        python3 ${{ github.action_path }}/collect.py $ARGS
