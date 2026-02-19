@@ -290,8 +290,10 @@ def analyze_with_claude(articles: list[dict], topic_label: str) -> dict | None:
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     model = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
     if api_key:
+        print(f"  [MODE] API モード (model={model})", file=sys.stderr)
         return call_claude_api(articles, topic_label, model)
     else:
+        print("  [MODE] CLI モード (claude -p)", file=sys.stderr)
         return call_claude(articles, topic_label)
 
 
