@@ -385,17 +385,39 @@ def generate_report(
     """Markdown レポートを生成する。"""
     now = datetime.now(JST).strftime("%Y-%m-%d %H:%M")
 
+    # 英語・日本語に分割
+    en_articles = [a for a in selected if a.get("lang") == "en"]
+    ja_articles = [a for a in selected if a.get("lang") == "ja"]
+
     lines = [
         f"# {topic_label} - {date_str}",
         "",
         f"> 収集時刻: {now} JST",
         "> 対象期間: 過去24時間",
         "",
+        f"- [日本語ニュース ({len(ja_articles)}件)](#日本語ニュース)",
+        f"- [English News ({len(en_articles)}件)](#english-news)",
+        "",
     ]
 
-    # 英語・日本語に分割
-    en_articles = [a for a in selected if a.get("lang") == "en"]
-    ja_articles = [a for a in selected if a.get("lang") == "ja"]
+    # 日本語ニュース
+    lines.append("## 日本語ニュース")
+    lines.append("")
+    if ja_articles:
+        for i, a in enumerate(ja_articles, 1):
+            importance = a.get("importance")
+            lines.append(f"### {i}. [{a['title']}]({a['url']})")
+            if importance:
+                importance_badge = {"high": "🔴 HIGH", "medium": "🟡 MEDIUM", "low": "🔵 LOW"}.get(importance, importance)
+                lines.append(f"- **重要度**: {importance_badge}")
+            lines.append(f"- **公開日**: {a['published']}")
+            lines.append(f"- **Source**: {a['source']}")
+            if a.get("summary_ja"):
+                lines.append(f"- **要約**: {a['summary_ja']}")
+            lines.append("")
+    else:
+        lines.append("該当なし")
+        lines.append("")
 
     # English News
     lines.append("## English News")
@@ -413,25 +435,6 @@ def generate_report(
                 lines.append(f"- **HN**: {a['hn_url']}")
             if a.get("summary_ja"):
                 lines.append(f"- **Summary**: {a['summary_ja']}")
-            lines.append("")
-    else:
-        lines.append("該当なし")
-        lines.append("")
-
-    # 日本語ニュース
-    lines.append("## 日本語ニュース")
-    lines.append("")
-    if ja_articles:
-        for i, a in enumerate(ja_articles, 1):
-            importance = a.get("importance")
-            lines.append(f"### {i}. [{a['title']}]({a['url']})")
-            if importance:
-                importance_badge = {"high": "🔴 HIGH", "medium": "🟡 MEDIUM", "low": "🔵 LOW"}.get(importance, importance)
-                lines.append(f"- **重要度**: {importance_badge}")
-            lines.append(f"- **公開日**: {a['published']}")
-            lines.append(f"- **Source**: {a['source']}")
-            if a.get("summary_ja"):
-                lines.append(f"- **要約**: {a['summary_ja']}")
             lines.append("")
     else:
         lines.append("該当なし")
