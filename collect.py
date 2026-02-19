@@ -402,7 +402,10 @@ def generate_report(
     lines.append("")
     if en_articles:
         for i, a in enumerate(en_articles, 1):
+            importance = a.get("importance", "medium")
+            importance_badge = {"high": "🔴 HIGH", "medium": "🟡 MEDIUM", "low": "🔵 LOW"}.get(importance, importance)
             lines.append(f"### {i}. {a['title']}")
+            lines.append(f"- **Importance**: {importance_badge}")
             lines.append(f"- **Published**: {a['published']}")
             lines.append(f"- **Source**: {a['source']}")
             lines.append(f"- **URL**: {a['url']}")
@@ -420,7 +423,10 @@ def generate_report(
     lines.append("")
     if ja_articles:
         for i, a in enumerate(ja_articles, 1):
+            importance = a.get("importance", "medium")
+            importance_badge = {"high": "🔴 HIGH", "medium": "🟡 MEDIUM", "low": "🔵 LOW"}.get(importance, importance)
             lines.append(f"### {i}. {a['title']}")
+            lines.append(f"- **重要度**: {importance_badge}")
             lines.append(f"- **公開日**: {a['published']}")
             lines.append(f"- **Source**: {a['source']}")
             lines.append(f"- **URL**: {a['url']}")
