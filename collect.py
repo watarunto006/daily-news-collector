@@ -462,8 +462,7 @@ def generate_report(
         lines.append("")
         for a in excluded:
             title = excluded_ja.get(a["id"], "") or a["title"]
-            lines.append(f"- {title}")
-            lines.append(f"  {a['url']}")
+            lines.append(f"- [{title}]({a['url']})")
         lines.append("")
 
     lines.append("## 収集メタ情報")
