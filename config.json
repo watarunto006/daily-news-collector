@@ -55,21 +55,6 @@
           "queries": ["LLM", "AI agent", "language model", "MCP server", "function calling"]
         }
       ]
-    },
-    "ai-research": {
-      "label": "AI 研究論文ダイジェスト",
-      "keywords_en": [
-        "AI LLM language model arxiv",
-        "AI research breakthrough state-of-the-art",
-        "machine learning deep learning new method",
-        "AI safety alignment research"
-      ],
-      "keywords_ja": [
-        "AI 論文 注目",
-        "大規模言語モデル 研究 新手法"
-      ],
-      "exclude_keywords": [],
-      "apis": []
     }
   }
 }
