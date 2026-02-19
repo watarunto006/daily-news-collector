@@ -24,6 +24,9 @@ outputs:
   report-paths:
     description: '生成されたレポートファイルパス（改行区切り）'
     value: ${{ steps.collect.outputs.report-paths }}
+  report-json-paths:
+    description: '生成された JSON レポートファイルパス（改行区切り）'
+    value: ${{ steps.collect.outputs.report-json-paths }}
   report-dir:
     description: 'レポート出力ディレクトリ'
     value: ${{ steps.collect.outputs.report-dir }}

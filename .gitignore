@@ -1,3 +1,4 @@
 reports/**/*.md
+reports/**/*.json
 __pycache__/
 .env

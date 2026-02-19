@@ -301,25 +301,11 @@ def analyze_with_claude(articles: list[dict], topic_label: str) -> dict | None:
 # レポート生成
 # =============================================================================
 
-def generate_report(
-    topic_label: str,
+def merge_results(
     articles: list[dict],
     claude_result: dict | None,
-    date_str: str,
-    total_fetched: int,
-) -> str:
-    """Markdown レポートを生成する。"""
-    now = datetime.now(JST).strftime("%Y-%m-%d %H:%M")
-
-    lines = [
-        f"# {topic_label} - {date_str}",
-        "",
-        f"> 収集時刻: {now} JST",
-        "> 対象期間: 過去24時間",
-        "",
-    ]
-
-    # Claude の結果と元記事をマージ
+) -> tuple[list[dict], list[dict]]:
+    """Claude の結果と元記事をマージし、(selected, excluded) を返す。"""
     excluded = []
     if claude_result and claude_result.get("articles"):
         rated = {a["id"]: a for a in claude_result["articles"]}
@@ -332,15 +318,80 @@ def generate_report(
             else:
                 excluded.append(a)
     else:
-        # Claude が失敗した場合はすべて掲載（要約なし）
         selected = articles
         for a in selected:
             a["summary_ja"] = ""
             a["importance"] = "medium"
 
-    # 重要度順にソート
     importance_order = {"high": 0, "medium": 1, "low": 2}
     selected.sort(key=lambda a: importance_order.get(a.get("importance", "medium"), 1))
+    return selected, excluded
+
+
+def generate_report_json(
+    topic_id: str,
+    topic_label: str,
+    selected: list[dict],
+    excluded: list[dict],
+    claude_result: dict | None,
+    date_str: str,
+    total_fetched: int,
+    total_after_filter: int,
+) -> dict:
+    """構造化された JSON レポートを生成する。"""
+    def clean_article(a: dict) -> dict:
+        return {
+            "title": a.get("title", ""),
+            "url": a.get("url", ""),
+            "published": a.get("published", ""),
+            "source": a.get("source", ""),
+            "lang": a.get("lang", ""),
+            "summary_ja": a.get("summary_ja", ""),
+            "importance": a.get("importance", "medium"),
+            "hn_url": a.get("hn_url"),
+        }
+
+    en_articles = [clean_article(a) for a in selected if a.get("lang") == "en"]
+    ja_articles = [clean_article(a) for a in selected if a.get("lang") == "ja"]
+
+    return {
+        "topic": topic_id,
+        "label": topic_label,
+        "date": date_str,
+        "collected_at": datetime.now(JST).strftime("%Y-%m-%d %H:%M"),
+        "highlights": claude_result.get("highlights", "") if claude_result else "",
+        "articles_en": en_articles,
+        "articles_ja": ja_articles,
+        "meta": {
+            "total_fetched": total_fetched,
+            "after_filter": total_after_filter,
+            "selected_en": len(en_articles),
+            "selected_ja": len(ja_articles),
+            "excluded": len(excluded),
+            "excluded_reasons": claude_result.get("excluded_reasons", "") if claude_result else "",
+        },
+    }
+
+
+def generate_report(
+    topic_label: str,
+    selected: list[dict],
+    excluded: list[dict],
+    claude_result: dict | None,
+    date_str: str,
+    total_fetched: int,
+    total_after_filter: int,
+) -> str:
+    """Markdown レポートを生成する。"""
+    now = datetime.now(JST).strftime("%Y-%m-%d %H:%M")
+
+    lines = [
+        f"# {topic_label} - {date_str}",
+        "",
+        f"> 収集時刻: {now} JST",
+        "> 対象期間: 過去24時間",
+        "",
+    ]
 
     # 英語・日本語に分割
     en_articles = [a for a in selected if a.get("lang") == "en"]
@@ -408,7 +459,7 @@ def generate_report(
 
     lines.append("## 収集メタ情報")
     lines.append(f"- 記事取得数（フィルタ前）: {total_fetched}")
-    lines.append(f"- 日付・重複フィルタ後: {len(articles)}")
+    lines.append(f"- 日付・重複フィルタ後: {total_after_filter}")
     lines.append(f"- 最終掲載記事数: 英語 {len(en_articles)}件 / 日本語 {len(ja_articles)}件")
     lines.append(f"- AI除外記事数: {len(excluded)}件")
     excluded_reasons = claude_result.get("excluded_reasons", "") if claude_result else ""
@@ -423,8 +474,8 @@ def generate_report(
 # メイン
 # =============================================================================
 
-def collect_topic(topic_id: str, topic_config: dict, date_str: str) -> str:
-    """1つのトピックについて収集・分析・レポート生成を行う。出力ファイルパスを返す。"""
+def collect_topic(topic_id: str, topic_config: dict, date_str: str) -> tuple[str, str]:
+    """1つのトピックについて収集・分析・レポート生成を行う。(md_path, json_path) を返す。"""
     label = topic_config["label"]
     print(f"--- {topic_id} 収集開始 ---", file=sys.stderr)
 
@@ -467,7 +518,8 @@ def collect_topic(topic_id: str, topic_config: dict, date_str: str) -> str:
 
     # 重複排除
     all_articles = deduplicate(all_articles)
-    print(f"  フィルタ後: {len(all_articles)}件", file=sys.stderr)
+    total_after_filter = len(all_articles)
+    print(f"  フィルタ後: {total_after_filter}件", file=sys.stderr)
 
     # Claude で関連性判定 + 要約
     claude_result = None
@@ -479,18 +531,29 @@ def collect_topic(topic_id: str, topic_config: dict, date_str: str) -> str:
         else:
             print("  → Claude 分析失敗（記事は要約なしで掲載）", file=sys.stderr)
 
-    # レポート生成
-    report = generate_report(label, all_articles, claude_result, date_str, total_fetched)
+    # マージ
+    selected, excluded = merge_results(all_articles, claude_result)
 
     # ファイル出力
     output_dir = os.path.join(REPORTS_DIR, topic_id)
     os.makedirs(output_dir, exist_ok=True)
-    output_file = os.path.join(output_dir, f"{date_str}.md")
-    with open(output_file, "w") as f:
+
+    # Markdown
+    report = generate_report(label, selected, excluded, claude_result, date_str, total_fetched, total_after_filter)
+    md_file = os.path.join(output_dir, f"{date_str}.md")
+    with open(md_file, "w") as f:
         f.write(report)
 
-    print(f"--- {topic_id} 収集完了: {output_file} ---", file=sys.stderr)
-    return output_file
+    # JSON
+    report_json = generate_report_json(
+        topic_id, label, selected, excluded, claude_result, date_str, total_fetched, total_after_filter
+    )
+    json_file = os.path.join(output_dir, f"{date_str}.json")
+    with open(json_file, "w") as f:
+        json.dump(report_json, f, ensure_ascii=False, indent=2)
+
+    print(f"--- {topic_id} 収集完了: {md_file} / {json_file} ---", file=sys.stderr)
+    return md_file, json_file
 
 
 def main():
@@ -519,10 +582,12 @@ def main():
                 sys.exit(1)
 
     report_paths = []
+    json_paths = []
     collected_topics = []
     for tid in target_topics:
-        output_file = collect_topic(tid, topics[tid], args.date)
-        report_paths.append(output_file)
+        md_file, json_file = collect_topic(tid, topics[tid], args.date)
+        report_paths.append(md_file)
+        json_paths.append(json_file)
         collected_topics.append(tid)
 
     # GitHub Actions 用の出力
@@ -531,9 +596,12 @@ def main():
         with open(github_output, "a") as f:
             f.write(f"report-dir={REPORTS_DIR}\n")
             f.write(f"topics-collected={','.join(collected_topics)}\n")
-            # 複数行の値は delimiter 構文を使用
             f.write("report-paths<<EOF\n")
             for p in report_paths:
+                f.write(f"{p}\n")
+            f.write("EOF\n")
+            f.write("report-json-paths<<EOF\n")
+            for p in json_paths:
                 f.write(f"{p}\n")
             f.write("EOF\n")
 
