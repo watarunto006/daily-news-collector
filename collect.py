@@ -230,17 +230,25 @@ def call_claude(articles: list[dict], topic_label: str) -> dict | None:
         print("  [ERROR] claude command not found", file=sys.stderr)
         return None
 
-    # JSON 部分を抽出
-    json_match = re.search(r'\{[\s\S]*\}', output)
+    return _extract_json(output, "CLI")
+
+
+def _extract_json(output: str, source: str) -> dict | None:
+    """出力文字列から JSON を抽出する。コードフェンスがあれば除去する。"""
+    # マークダウンのコードフェンスを除去
+    cleaned = re.sub(r'```(?:json)?\s*', '', output)
+    cleaned = cleaned.strip()
+
+    json_match = re.search(r'\{[\s\S]*\}', cleaned)
     if json_match:
         try:
             return json.loads(json_match.group())
         except json.JSONDecodeError:
-            print("  [WARN] Failed to parse Claude output as JSON", file=sys.stderr)
+            print(f"  [WARN] Failed to parse {source} output as JSON", file=sys.stderr)
             print(f"  Output: {output[:500]}", file=sys.stderr)
             return None
     else:
-        print("  [WARN] No JSON found in Claude output", file=sys.stderr)
+        print(f"  [WARN] No JSON found in {source} output", file=sys.stderr)
         print(f"  Output: {output[:500]}", file=sys.stderr)
         return None
 
@@ -263,26 +271,17 @@ def call_claude_api(articles: list[dict], topic_label: str, model: str) -> dict 
         client = Anthropic()
         message = client.messages.create(
             model=model,
-            max_tokens=16384,
+            max_tokens=32768,
             messages=[{"role": "user", "content": prompt}],
         )
         output = message.content[0].text.strip()
+        if message.stop_reason == "max_tokens":
+            print(f"  [WARN] API response truncated (max_tokens=32768, articles={len(articles)})", file=sys.stderr)
     except Exception as e:
         print(f"  [ERROR] Anthropic API call failed: {e}", file=sys.stderr)
         return None
 
-    json_match = re.search(r'\{[\s\S]*\}', output)
-    if json_match:
-        try:
-            return json.loads(json_match.group())
-        except json.JSONDecodeError:
-            print("  [WARN] Failed to parse API output as JSON", file=sys.stderr)
-            print(f"  Output: {output[:500]}", file=sys.stderr)
-            return None
-    else:
-        print("  [WARN] No JSON found in API output", file=sys.stderr)
-        print(f"  Output: {output[:500]}", file=sys.stderr)
-        return None
+    return _extract_json(output, "API")
 
 
 def analyze_with_claude(articles: list[dict], topic_label: str) -> dict | None:
